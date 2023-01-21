@@ -15,6 +15,13 @@ operator == :: (a: FixedString($N), b: FixedString($S)) -> bool {
     return compare(a, b);
 }
 
+create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
+    result: FixedString(N);
+    result.buffer = buffer.buffer;
+    // memcpy(result.buffer.data, buffer.buffer.data, N);
+    return result;
+}
+
 create_fixed_string :: (value: int) -> FixedString(20) {
     buffer: FixedString(20);
     index: int;
@@ -119,6 +126,10 @@ write :: (buffer: *FixedString($N), value: string, offset: int) {
     }
 }
 
+append :: (buffer: *FixedString($N), value: string) {
+    write(buffer, value, count(<< buffer));
+}
+
 write :: (buffer: *FixedString($N), value: *u8) {
     index := 0;
     while index < buffer.buffer.count && value[index] != 0 {
@@ -131,6 +142,24 @@ write :: (buffer: *FixedString($N), value: *u8) {
     } else {
         buffer.buffer.data[buffer.buffer.count - 1] = 0;
     }
+}
+
+write :: (buffer: *FixedString($N), value: *u8, offset: int) {
+    index := 0;
+    while index + offset < buffer.buffer.count && value[index] != 0 {
+        buffer.buffer.data[index + offset] = value[index];
+        index += 1;
+    }
+
+    if index + offset < buffer.buffer.count {
+        buffer.buffer.data[index + offset] = value[index];
+    } else {
+        buffer.buffer.data[buffer.buffer.count - 1] = 0;
+    }
+}
+
+append :: (buffer: *FixedString($N), value: *u8) {
+    write(buffer, value, count(<< buffer));
 }
 
 write :: (buffer: *FixedString($N), value: FixedString($S)) {
@@ -155,16 +184,40 @@ write :: (buffer: *FixedString($N), value: FixedString($S), offset: int) {
     // TODO not all of these confirm ending buffer in \0, does that matter?
 }
 
-write :: (buffer: *FixedString($N), value: int, offset: int = 0) {
+append :: (buffer: *FixedString($N), value: FixedString($S)) {
+    write(buffer, value, count(<< buffer));
+}
+
+write :: (buffer: *FixedString($N), value: int) {
+    int_string := create_fixed_string(value);
+
+    write(buffer, int_string);
+}
+
+write :: (buffer: *FixedString($N), value: int, offset: int) {
     int_string := create_fixed_string(value);
 
     write(buffer, int_string, offset);
 }
 
-write :: (buffer: *FixedString($N), value: float, offset: int = 0) {
+append :: (buffer: *FixedString($N), value: int) {
+    write(buffer, value, count(<< buffer));
+}
+
+write :: (buffer: *FixedString($N), value: float) {
+    float_string := create_fixed_string(value);
+
+    write(buffer, float_string);
+}
+
+write :: (buffer: *FixedString($N), value: float, offset: int) {
     float_string := create_fixed_string(value);
 
     write(buffer, float_string, offset);
+}
+
+append :: (buffer: *FixedString($N), value: float) {
+    write(buffer, value, count(<< buffer));
 }
 
 count :: (bytes: *u8) -> int {
@@ -199,6 +252,12 @@ temp_string :: (buffer: FixedString($N)) -> string {
     return value;
 }
 
+alloc_string :: (buffer: FixedString($N)) -> string {
+    result := alloc_string(count(buffer));
+    memcpy(result.data, buffer.buffer.data, result.count);
+    return result;
+}
+
 delete_first :: (buffer: *FixedString($N), count: int) {
     remaining := N - count;
 
@@ -230,6 +289,13 @@ first_character_index :: (buffer: FixedString($N), character: u8) -> int {
     return -1;
 }
 
+// this seems to crash the compiler but in an isolated test it does not
+// last_character_index :: (buffer: FixedString($N), $character: string) -> int #modify {
+//     return character.count == 1;
+// } {
+//     return last_character_index(buffer, character[0]);
+// }
+
 last_character_index :: (buffer: FixedString($N), character: u8) -> int {
     index: int = buffer.buffer.count - 1;
     while index >= 0 {
@@ -243,10 +309,40 @@ last_character_index :: (buffer: FixedString($N), character: u8) -> int {
     return -1;
 }
 
+begins_with :: (buffer: FixedString($N), suffix: FixedString($S)) -> bool {
+    offset: int;
+    while offset < buffer.buffer.count && offset < suffix.buffer.count {
+        if buffer.buffer.data[offset] != suffix.buffer.data[offset] {
+            return false;
+        }
+
+        offset += 1;
+    }
+
+    return true;
+}
+
 begins_with :: (buffer: FixedString($N), suffix: string) -> bool {
     offset: int;
     while offset < buffer.buffer.count && offset < suffix.count {
         if buffer.buffer.data[offset] != suffix.data[offset] {
+            return false;
+        }
+
+        offset += 1;
+    }
+
+    return true;
+}
+
+ends_with :: (buffer: FixedString($N), suffix: FixedString($S)) -> bool {
+    buffer_count := count(buffer);
+    suffix_count := count(suffix);
+    offset: int;
+    while offset < buffer_count && offset < suffix_count {
+        buffer_index := buffer_count - offset - 1;
+        suffix_index := suffix_count - offset - 1;
+        if buffer.buffer.data[buffer_index] != suffix.buffer.data[suffix_index] {
             return false;
         }
 
@@ -386,4 +482,5 @@ clear :: (buffer: *FixedString($N)) {
 
 #scope_file
 
+#import "Basic";
 #import "Hash";
