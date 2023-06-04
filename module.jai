@@ -15,6 +15,20 @@ operator == :: (a: FixedString($N), b: FixedString($S)) -> bool {
     return compare(a, b);
 }
 
+operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
+    if N < b.count {
+        return false;
+    }
+
+    for i: 0..b.count - 1 {
+        if a.buffer.data[i] != b.data[i] {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
     result: FixedString(N);
     result.buffer = buffer.buffer;
@@ -67,7 +81,6 @@ create_fixed_string :: (value: float) -> FixedString(50) {
 
     string_value := tprint("%", value);
     if string_value.count > 50 {
-        print("% %\n", value, string_value);
         assert(string_value.count <= 50, "I wrote this assuming a float couldn't be longer than 47 characters.");
     }
 
