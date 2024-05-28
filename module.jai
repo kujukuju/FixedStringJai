@@ -10,9 +10,9 @@ operator [] :: (buffer: FixedString($T), index: int) -> u8 {
 operator == :: (a: FixedString($N), b: FixedString($S)) -> bool {
     #if N != S {
         return false;
+    } else {
+        return inline compare(a, b);
     }
-
-    return compare(a, b);
 }
 
 operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
@@ -251,16 +251,22 @@ count :: (buffer: FixedString($N)) -> int {
     return index;
 }
 
-temp_string :: (buffer: FixedString($N)) -> string {
-    value: string = ---;
-    value.data = buffer.buffer.data;
-    
-    index := 0;
-    while index < buffer.buffer.count && buffer.buffer.data[index] != 0 {
-        index += 1;
+temp_c_string :: (fixed: *FixedString($N)) -> *u8 {
+    if count(fixed) < N {
+        return fixed.buffer.data;
     }
 
-    value.count = index;
+    result: *u8 = temporary_alloc(N + 1);
+    memcpy(result, fixed.buffer.data, N);
+    result[N] = 0;
+
+    return result;
+}
+
+temp_string :: (buffer: *FixedString($N)) -> string {
+    value: string;
+    value.data = buffer.buffer.data;
+    value.count = count(buffer);
 
     return value;
 }
@@ -471,20 +477,22 @@ hash :: (buffer: FixedString($N)) -> u32 {
 }
 
 compare :: (a: FixedString($N), b: FixedString(N)) -> bool {
-    index: int;
-    while index < N {
-        if a.buffer.data[index] != b.buffer.data[index] {
-            return false;
-        }
+    return memcmp(a.buffer.data, b.buffer.data, N) == 0;
 
-        if a.buffer.data[index] == 0 && b.buffer.data[index] == 0 {
-            return true;
-        }
+    // index: int;
+    // while index < N {
+    //     if a.buffer.data[index] != b.buffer.data[index] {
+    //         return false;
+    //     }
 
-        index += 1;
-    }
+    //     if a.buffer.data[index] == 0 && b.buffer.data[index] == 0 {
+    //         return true;
+    //     }
 
-    return true;
+    //     index += 1;
+    // }
+
+    // return true;
 }
 
 clear :: (buffer: *FixedString($N)) {
