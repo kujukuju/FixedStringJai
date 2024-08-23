@@ -1,5 +1,6 @@
 FixedString :: struct (size: int) {
     buffer: [size] u8;
+    terminator: u8;
 }
 
 operator [] :: (buffer: FixedString($T), index: int) -> u8 {
@@ -11,32 +12,25 @@ operator == :: (a: FixedString($N), b: FixedString($S)) -> bool {
     #if N != S {
         return false;
     } else {
-        return inline compare(a, b);
+        return inline equals(a, b);
     }
 }
 
 operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
-    if N < b.count {
-        return false;
-    }
-
-    for i: 0..b.count - 1 {
-        if a.buffer.data[i] != b.data[i] {
-            return false;
-        }
-    }
-
-    return true;
+    return to_string(*a) == b;
 }
 
 create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
     result: FixedString(N);
     result.buffer = buffer.buffer;
-    // memcpy(result.buffer.data, buffer.buffer.data, N);
     return result;
 }
 
-create_fixed_string :: (value: int) -> FixedString(20) {
+create_fixed_string :: ($N: int) -> FixedString(N) {
+    return FixedString(N).{};
+}
+
+create_fixed_string :: (value: $T) -> FixedString(20) {
     buffer: FixedString(20);
     index: int;
 
@@ -75,6 +69,45 @@ create_fixed_string :: (value: int) -> FixedString(20) {
     return buffer;
 }
 
+// create_fixed_string :: (value: int) -> FixedString(20) {
+//     buffer: FixedString(20);
+//     index: int;
+
+//     if value == 0 {
+//         buffer.buffer.data[0] = #char "0";
+//         return buffer;
+//     }
+
+//     negative := value < 0;
+//     if negative {
+//         value = -value;
+//     }
+
+//     while value != 0 {
+//         buffer.buffer.data[index] = cast(u8) ((value % 10) + 48);
+//         value /= 10;
+
+//         index += 1;
+//     }
+
+//     if negative {
+//         buffer.buffer.data[index] = #char "-";
+//         index += 1;
+//     }
+
+//     start_index: int;
+//     index -= 1;
+
+//     while index > start_index {
+//         buffer.buffer.data[start_index], buffer.buffer.data[index] = swap(buffer.buffer.data[start_index], buffer.buffer.data[index]);
+
+//         start_index += 1;
+//         index -= 1;
+//     }
+
+//     return buffer;
+// }
+
 // this method isnt really good at all
 create_fixed_string :: (value: float) -> FixedString(50) {
     buffer: FixedString(50);
@@ -91,18 +124,14 @@ create_fixed_string :: (value: float) -> FixedString(50) {
 
 create_fixed_string :: (value: string, $size: int) -> FixedString(size) {
     buffer: FixedString(size);
-    for i: 0..value.count - 1 {
-        buffer.buffer.data[i] = value.data[i];
-    }
+    memcpy(buffer.buffer.data, value.data, min(value.count, size));
 
     return buffer;
 }
 
-create_fixed_string :: ($value: string) -> FixedString(value.count + 1) {
-    buffer: FixedString(value.count + 1);
-    for i: 0..value.count - 1 {
-        buffer.buffer.data[i] = value.data[i];
-    }
+create_fixed_string :: ($value: string) -> FixedString(value.count) {
+    buffer: FixedString(value.count);
+    memcpy(buffer.buffer.data, value.data, value.count);
 
     return buffer;
 }
@@ -119,86 +148,55 @@ create_fixed_string :: (value: *u8, $size: int) -> FixedString(size) {
     return buffer;
 }
 
+create_fixed_string :: (value: *u8, size: int, $N: int) -> FixedString(N) {
+    buffer: FixedString(N);
+    memcpy(buffer.buffer.data, value, min(size, N));
+
+    return buffer;
+}
+
 write :: (buffer: *FixedString($N), value: string) {
     if value.count >= buffer.buffer.count {
-        memcpy(buffer.buffer.data, value.data, buffer.buffer.count);
-        buffer.buffer.data[buffer.buffer.count - 1] = 0;
+        memcpy(buffer.buffer.data, value.data, N);
     } else {
         memcpy(buffer.buffer.data, value.data, value.count);
-        buffer.buffer.data[value.count] = 0;
     }
 }
 
 write :: (buffer: *FixedString($N), value: string, offset: int) {
     if value.count >= buffer.buffer.count + offset {
-        memcpy(buffer.buffer.data + offset, value.data, buffer.buffer.count - offset);
-        buffer.buffer.data[buffer.buffer.count - 1] = 0;
+        memcpy(buffer.buffer.data + offset, value.data, N - offset);
     } else {
         memcpy(buffer.buffer.data + offset, value.data, value.count);
-        buffer.buffer.data[value.count + offset] = 0;
     }
 }
 
 append :: (buffer: *FixedString($N), value: string) {
-    write(buffer, value, count(<< buffer));
+    write(buffer, value, count(buffer.*));
 }
 
 write :: (buffer: *FixedString($N), value: *u8) {
-    index := 0;
-    while index < buffer.buffer.count && value[index] != 0 {
-        buffer.buffer.data[index] = value[index];
-        index += 1;
-    }
-
-    if index < buffer.buffer.count {
-        buffer.buffer.data[index] = value[index];
-    } else {
-        buffer.buffer.data[buffer.buffer.count - 1] = 0;
-    }
+    write(buffer, to_string(value));
 }
 
 write :: (buffer: *FixedString($N), value: *u8, offset: int) {
-    index := 0;
-    while index + offset < buffer.buffer.count && value[index] != 0 {
-        buffer.buffer.data[index + offset] = value[index];
-        index += 1;
-    }
-
-    if index + offset < buffer.buffer.count {
-        buffer.buffer.data[index + offset] = value[index];
-    } else {
-        buffer.buffer.data[buffer.buffer.count - 1] = 0;
-    }
+    write(buffer, to_string(value), offset);
 }
 
 append :: (buffer: *FixedString($N), value: *u8) {
-    write(buffer, value, count(<< buffer));
+    write(buffer, value, count(buffer.*));
 }
 
 write :: (buffer: *FixedString($N), value: FixedString($S)) {
-    min_count :: #run min(N, S);
-    for i: 0..min_count - 1 {
-        buffer.buffer.data[i] = value.buffer.data[i];
-    }
-
-    for i: min_count..N - 1 {
-        buffer.buffer.data[i] = 0;
-    }
+    write(buffer, to_string(*value));
 }
 
 write :: (buffer: *FixedString($N), value: FixedString($S), offset: int) {
-    index: int;
-    while index + offset < N && index < S {
-        buffer.buffer.data[index + offset] = value.buffer.data[index];
-
-        index += 1;
-    }
-
-    // TODO not all of these confirm ending buffer in \0, does that matter?
+    write(buffer, to_string(*value), offset);
 }
 
 append :: (buffer: *FixedString($N), value: FixedString($S)) {
-    write(buffer, value, count(<< buffer));
+    write(buffer, to_string(*value), count(buffer.*));
 }
 
 write :: (buffer: *FixedString($N), value: int) {
@@ -214,7 +212,7 @@ write :: (buffer: *FixedString($N), value: int, offset: int) {
 }
 
 append :: (buffer: *FixedString($N), value: int) {
-    write(buffer, value, count(<< buffer));
+    write(buffer, value, count(buffer.*));
 }
 
 write :: (buffer: *FixedString($N), value: float) {
@@ -230,7 +228,7 @@ write :: (buffer: *FixedString($N), value: float, offset: int) {
 }
 
 append :: (buffer: *FixedString($N), value: float) {
-    write(buffer, value, count(<< buffer));
+    write(buffer, value, count(buffer.*));
 }
 
 count :: (bytes: *u8) -> int {
@@ -242,31 +240,40 @@ count :: (bytes: *u8) -> int {
     return index;
 }
 
-count :: (buffer: FixedString($N)) -> int {
-    index := 0;
-    while index < N && buffer.buffer.data[index] != 0 {
-        index += 1;
+count :: (fixed: FixedString($N)) -> int {
+    for i: 0..N - 1 {
+        if fixed.buffer[i] == 0 {
+            return i;
+        }
     }
 
-    return index;
+    return N;
 }
 
-temp_c_string :: (fixed: *FixedString($N)) -> *u8 {
-    if count(fixed) < N {
-        return fixed.buffer.data;
+to_upper_case :: (fixed: FixedString($N)) -> FixedString(N) {
+    upper: FixedString(N);
+    for i: 0..N - 1 {
+        upper.buffer[i] = to_upper(fixed.buffer[i]);
     }
-
-    result: *u8 = temporary_alloc(N + 1);
-    memcpy(result, fixed.buffer.data, N);
-    result[N] = 0;
-
-    return result;
+    return upper;
 }
 
-temp_string :: (buffer: *FixedString($N)) -> string {
+to_lower_case :: (fixed: FixedString($N)) -> FixedString(N) {
+    lower: FixedString(N);
+    for i: 0..N - 1 {
+        lower.buffer[i] = to_lower(fixed.buffer[i]);
+    }
+    return lower;
+}
+
+to_c_string :: (fixed: *FixedString($N)) -> *u8 {
+    return fixed.buffer.data;
+}
+
+to_string :: (fixed: *FixedString($N)) -> string {
     value: string;
-    value.data = buffer.buffer.data;
-    value.count = count(buffer);
+    value.data = fixed.buffer.data;
+    value.count = count(fixed);
 
     return value;
 }
@@ -447,7 +454,7 @@ fixed_substring :: (buffer: FixedString($N), start: int, $length: int) -> FixedS
 fixed_substring :: (buffer: FixedString($N), start: int, length: int) -> FixedString(N) {
     substring: FixedString(N);
     for i: 0..length - 1 {
-        substring[i] = buffer.buffer.data[start + i];
+        substring.buffer[i] = buffer.buffer.data[start + i];
     }
 
     return substring;
@@ -458,7 +465,7 @@ fixed_substring :: (buffer: FixedString($N), start: int) -> FixedString(N) {
 
     substring: FixedString(N);
     for i: 0..length - 1 {
-        substring[i] = buffer.buffer.data[start + i];
+        substring.buffer[i] = buffer.buffer.data[start + i];
     }
 
     return substring;
@@ -476,29 +483,14 @@ hash :: (buffer: FixedString($N)) -> u32 {
     return sdbm_hash(buffer.buffer.data, N);
 }
 
-compare :: (a: FixedString($N), b: FixedString(N)) -> bool {
+get_hash :: hash;
+
+equals :: (a: FixedString($N), b: FixedString(N)) -> bool {
     return memcmp(a.buffer.data, b.buffer.data, N) == 0;
-
-    // index: int;
-    // while index < N {
-    //     if a.buffer.data[index] != b.buffer.data[index] {
-    //         return false;
-    //     }
-
-    //     if a.buffer.data[index] == 0 && b.buffer.data[index] == 0 {
-    //         return true;
-    //     }
-
-    //     index += 1;
-    // }
-
-    // return true;
 }
 
 clear :: (buffer: *FixedString($N)) {
-    for i: 0..N - 1 {
-        buffer.buffer.data[i] = 0;
-    }
+    memset(buffer.buffer.data, 0, N);
 }
 
 #scope_file
