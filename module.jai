@@ -26,9 +26,9 @@ create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
     return result;
 }
 
-create_fixed_string :: ($N: int) -> FixedString(N) {
-    return FixedString(N).{};
-}
+// create_fixed_string :: ($N: int) -> FixedString(N) {
+//     return FixedString(N).{};
+// }
 
 create_fixed_string :: (value: $T) -> FixedString(20) {
     buffer: FixedString(20);
