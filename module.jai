@@ -250,6 +250,10 @@ count :: (fixed: FixedString($N)) -> int {
     return N;
 }
 
+exists :: (fixed: FixedString($N)) -> bool {
+    return N > 0 && fixed.buffer[0] != 0;
+}
+
 to_upper_case :: (fixed: FixedString($N)) -> FixedString(N) {
     upper: FixedString(N);
     for i: 0..N - 1 {
