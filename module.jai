@@ -60,7 +60,7 @@ create_fixed_string :: (value: $T) -> FixedString(20) {
     index -= 1;
 
     while index > start_index {
-        buffer.buffer.data[start_index], buffer.buffer.data[index] = swap(buffer.buffer.data[start_index], buffer.buffer.data[index]);
+        buffer.buffer.data[start_index], buffer.buffer.data[index] = buffer.buffer.data[index], buffer.buffer.data[start_index];
 
         start_index += 1;
         index -= 1;
@@ -138,7 +138,7 @@ create_fixed_string :: ($value: string) -> FixedString(value.count) {
 
 create_fixed_string :: (value: *u8, $size: int) -> FixedString(size) {
     buffer: FixedString(size);
-    
+
     index := 0;
     while value[index] != 0 {
         buffer.buffer.data[index] = value[index];
@@ -416,7 +416,7 @@ contains :: (buffer: FixedString($N), part: string) -> bool {
     if part.count == 0 {
         return true;
     }
-    
+
     index: int;
 
     while index < N && buffer.buffer.data[index] != 0 {
