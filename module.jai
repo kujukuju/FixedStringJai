@@ -1,6 +1,20 @@
 FixedString :: struct (size: int) {
     buffer: [size] u8;
-    terminator: u8;
+    terminator: u8 #align 1;
+    #run validate_fixed_string(size);
+}
+
+validate_fixed_string :: ($size: int) {
+    FixedStringMatch :: struct {
+        buffer: [size] u8;
+        terminator: u8 #align 1;
+    }
+    fixed: FixedStringMatch;
+
+    buffer_ptr := cast(*void) fixed.buffer.data;
+    terminator_ptr := cast(*void) *fixed.terminator;
+
+    assert(terminator_ptr - buffer_ptr == size, "Incorrect terminator offset for FixedString(%).\n", size);
 }
 
 operator [] :: (buffer: FixedString($T), index: int) -> u8 {
@@ -20,19 +34,29 @@ operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
     return to_string(*a) == b;
 }
 
+operator == :: (a: FixedString($N), b: *u8) -> bool #symmetric {
+    return to_string(*a) == to_string(b);
+}
+
 create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
     result: FixedString(N);
     result.buffer = buffer.buffer;
     return result;
 }
 
-// create_fixed_string :: ($N: int) -> FixedString(N) {
-//     return FixedString(N).{};
-// }
+create_fixed_string :: (buffer: [$N] u8) -> FixedString(N) {
+    result: FixedString(N);
+    result.buffer = buffer;
+    return result;
+}
 
-create_fixed_string :: (value: $T) -> FixedString(20) {
+create_fixed_string :: (any_value: $T) -> FixedString(20) #modify {
+    return T == s64 || T == s32 || T == s16 || T == s8 || T == u64 || T == u32 || T == u16 || T == u8;
+} {
     buffer: FixedString(20);
     index: int;
+
+    value := cast(s64) any_value;
 
     if value == 0 {
         buffer.buffer.data[0] = #char "0";
@@ -140,7 +164,7 @@ create_fixed_string :: (value: *u8, $size: int) -> FixedString(size) {
     buffer: FixedString(size);
 
     index := 0;
-    while value[index] != 0 {
+    while value[index] != 0 && index < size {
         buffer.buffer.data[index] = value[index];
         index += 1;
     }
@@ -487,11 +511,15 @@ hash :: (buffer: FixedString($N)) -> u32 {
     return sdbm_hash(buffer.buffer.data, N);
 }
 
+fixed_string_hash :: hash;
+
 get_hash :: hash;
 
 equals :: (a: FixedString($N), b: FixedString(N)) -> bool {
     return memcmp(a.buffer.data, b.buffer.data, N) == 0;
 }
+
+fixed_string_equals :: equals;
 
 clear :: (buffer: *FixedString($N)) {
     memset(buffer.buffer.data, 0, N);
