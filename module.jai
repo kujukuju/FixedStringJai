@@ -1,3 +1,6 @@
+
+#module_parameters()(ASSERT_LENGTH: bool = true);
+
 FixedString :: struct (size: int) {
     buffer: [size] u8;
     terminator: u8 #align 1;
@@ -38,11 +41,11 @@ operator ! :: (buffer: FixedString($N)) -> bool {
     return !to_string(*buffer);
 }
 
-create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
-    result: FixedString(N);
-    result.buffer = buffer.buffer;
-    return result;
-}
+// create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
+//     result: FixedString(N);
+//     result.buffer = buffer.buffer;
+//     return result;
+// }
 
 create_fixed_string :: (buffer: [$N] u8) -> FixedString(N) {
     result: FixedString(N);
@@ -108,6 +111,10 @@ create_fixed_string :: (value: float) -> FixedString(50) {
 }
 
 create_fixed_string :: (value: string, $size: int) -> FixedString(size) {
+    #if ASSERT_LENGTH {
+        assert(value.count <= size, "String does not fit inside fixed string buffer. % %\n", value.count, size);
+    }
+
     buffer: FixedString(size);
     memcpy(buffer.buffer.data, value.data, min(value.count, size));
 
@@ -121,19 +128,15 @@ create_fixed_string :: ($value: string) -> FixedString(value.count) {
     return buffer;
 }
 
-create_fixed_string :: (value: *u8, $size: int) -> FixedString(size) {
-    buffer: FixedString(size);
-
-    index := 0;
-    while value[index] != 0 && index < size {
-        buffer.buffer.data[index] = value[index];
-        index += 1;
-    }
-
-    return buffer;
+create_fixed_string :: (value: *u8, $N: int) -> FixedString(N) {
+    return create_fixed_string(value, c_style_strlen(value), N);
 }
 
 create_fixed_string :: (value: *u8, size: int, $N: int) -> FixedString(N) {
+    #if ASSERT_LENGTH {
+        assert(size <= N, "String does not fit inside fixed string buffer. % %\n", size, N);
+    }
+
     buffer: FixedString(N);
     memcpy(buffer.buffer.data, value, min(size, N));
 
@@ -141,6 +144,10 @@ create_fixed_string :: (value: *u8, size: int, $N: int) -> FixedString(N) {
 }
 
 write :: (buffer: *FixedString($N), value: string) {
+    #if ASSERT_LENGTH {
+        assert(value.count <= N, "String does not fit inside fixed string buffer. % %\n", value.count, N);
+    }
+
     if value.count >= buffer.buffer.count {
         memcpy(buffer.buffer.data, value.data, N);
     } else {
@@ -149,6 +156,10 @@ write :: (buffer: *FixedString($N), value: string) {
 }
 
 write :: (buffer: *FixedString($N), value: string, offset: int) {
+    #if ASSERT_LENGTH {
+        assert(offset + value.count <= N, "String does not fit inside fixed string buffer. % %\n", offset + value.count, N);
+    }
+
     if value.count >= buffer.buffer.count + offset {
         memcpy(buffer.buffer.data + offset, value.data, N - offset);
     } else {
@@ -226,7 +237,7 @@ count :: (bytes: *u8) -> int {
 }
 
 count :: (fixed: FixedString) -> int {
-    return c_style_strlen(fixed.buffer.data);
+    return count(fixed.buffer.data);
 }
 
 to_upper_case :: (fixed: FixedString($N)) -> FixedString(N) {
@@ -255,6 +266,24 @@ to_string :: (fixed: *FixedString($N)) -> string {
     value.count = count(fixed);
 
     return value;
+}
+
+begins_with :: (fixed: FixedString($N), suffix: string) -> bool {
+    return begins_with(to_string(*fixed), suffix);
+}
+
+begins_with :: (buffer: FixedString($N), suffix: FixedString($S)) -> bool {
+    return begins_with(to_string(*buffer), to_string(*suffix));
+}
+
+starts_with :: begins_with;
+
+ends_with :: (fixed: FixedString($N), postfix: string) -> bool {
+    return ends_with(to_string(*fixed), postfix);
+}
+
+ends_with :: (buffer: FixedString($N), postfix: FixedString($S)) -> bool {
+    return ends_with(to_string(*buffer), to_string(*postfix));
 }
 
 alloc_string :: (buffer: FixedString($N)) -> string {
@@ -312,65 +341,6 @@ last_character_index :: (buffer: FixedString($N), character: u8) -> int {
     }
 
     return -1;
-}
-
-begins_with :: (buffer: FixedString($N), suffix: FixedString($S)) -> bool {
-    offset: int;
-    while offset < buffer.buffer.count && offset < suffix.buffer.count {
-        if buffer.buffer.data[offset] != suffix.buffer.data[offset] {
-            return false;
-        }
-
-        offset += 1;
-    }
-
-    return true;
-}
-
-begins_with :: (buffer: FixedString($N), suffix: string) -> bool {
-    offset: int;
-    while offset < buffer.buffer.count && offset < suffix.count {
-        if buffer.buffer.data[offset] != suffix.data[offset] {
-            return false;
-        }
-
-        offset += 1;
-    }
-
-    return true;
-}
-
-ends_with :: (buffer: FixedString($N), suffix: FixedString($S)) -> bool {
-    buffer_count := count(buffer);
-    suffix_count := count(suffix);
-    offset: int;
-    while offset < buffer_count && offset < suffix_count {
-        buffer_index := buffer_count - offset - 1;
-        suffix_index := suffix_count - offset - 1;
-        if buffer.buffer.data[buffer_index] != suffix.buffer.data[suffix_index] {
-            return false;
-        }
-
-        offset += 1;
-    }
-
-    return true;
-}
-
-ends_with :: (buffer: FixedString($N), suffix: string) -> bool {
-    buffer_count := count(buffer);
-    offset: int;
-    while offset < buffer_count && offset < suffix.count {
-        buffer_index := buffer_count - offset - 1;
-        suffix_index := suffix.count - offset - 1;
-        if buffer.buffer.data[buffer_index] != suffix.data[suffix_index] {
-            return false;
-        }
-
-        offset += 1;
-    }
-
-    return true;
 }
 
 string_after_last_character :: (buffer: FixedString($N), character: u8) -> FixedString(N) {
@@ -470,6 +440,7 @@ clear :: (buffer: *FixedString($N)) {
 
 #import "Basic";
 #import "Hash";
+#import "String";
 
 Basic :: #import "Basic";
 Hash :: #import "Hash";
