@@ -1,21 +1,21 @@
 FixedString :: struct (size: int) {
     buffer: [size] u8;
     terminator: u8 #align 1;
-    #run validate_fixed_string(size);
+    // #run validate_fixed_string(size);
 }
 
-validate_fixed_string :: ($size: int) {
-    FixedStringMatch :: struct {
-        buffer: [size] u8;
-        terminator: u8 #align 1;
-    }
-    fixed: FixedStringMatch;
+// validate_fixed_string :: ($size: int) {
+//     FixedStringMatch :: struct {
+//         buffer: [size] u8;
+//         terminator: u8 #align 1;
+//     }
+//     fixed: FixedStringMatch;
 
-    buffer_ptr := cast(*void) fixed.buffer.data;
-    terminator_ptr := cast(*void) *fixed.terminator;
+//     buffer_ptr := cast(*void) fixed.buffer.data;
+//     terminator_ptr := cast(*void) *fixed.terminator;
 
-    assert(terminator_ptr - buffer_ptr == size, "Incorrect terminator offset for FixedString(%).\n", size);
-}
+//     assert(terminator_ptr - buffer_ptr == size, "Incorrect terminator offset for FixedString(%).\n", size);
+// }
 
 operator [] :: (buffer: FixedString($T), index: int) -> u8 {
     // TODO can I just do buffer.buffer[index]? ive had mixed results in the past
@@ -23,11 +23,7 @@ operator [] :: (buffer: FixedString($T), index: int) -> u8 {
 }
 
 operator == :: (a: FixedString($N), b: FixedString($S)) -> bool {
-    #if N != S {
-        return false;
-    } else {
-        return inline equals(a, b);
-    }
+    return to_string(*a) == to_string(*b);
 }
 
 operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
@@ -36,6 +32,10 @@ operator == :: (a: FixedString($N), b: string) -> bool #symmetric {
 
 operator == :: (a: FixedString($N), b: *u8) -> bool #symmetric {
     return to_string(*a) == to_string(b);
+}
+
+operator ! :: (buffer: FixedString($N)) -> bool {
+    return !to_string(*buffer);
 }
 
 create_fixed_string :: (buffer: FixedString($N)) -> FixedString(N) {
@@ -92,45 +92,6 @@ create_fixed_string :: (any_value: $T) -> FixedString(20) #modify {
 
     return buffer;
 }
-
-// create_fixed_string :: (value: int) -> FixedString(20) {
-//     buffer: FixedString(20);
-//     index: int;
-
-//     if value == 0 {
-//         buffer.buffer.data[0] = #char "0";
-//         return buffer;
-//     }
-
-//     negative := value < 0;
-//     if negative {
-//         value = -value;
-//     }
-
-//     while value != 0 {
-//         buffer.buffer.data[index] = cast(u8) ((value % 10) + 48);
-//         value /= 10;
-
-//         index += 1;
-//     }
-
-//     if negative {
-//         buffer.buffer.data[index] = #char "-";
-//         index += 1;
-//     }
-
-//     start_index: int;
-//     index -= 1;
-
-//     while index > start_index {
-//         buffer.buffer.data[start_index], buffer.buffer.data[index] = swap(buffer.buffer.data[start_index], buffer.buffer.data[index]);
-
-//         start_index += 1;
-//         index -= 1;
-//     }
-
-//     return buffer;
-// }
 
 // this method isnt really good at all
 create_fixed_string :: (value: float) -> FixedString(50) {
@@ -264,18 +225,8 @@ count :: (bytes: *u8) -> int {
     return index;
 }
 
-count :: (fixed: FixedString($N)) -> int {
-    for i: 0..N - 1 {
-        if fixed.buffer[i] == 0 {
-            return i;
-        }
-    }
-
-    return N;
-}
-
-exists :: (fixed: FixedString($N)) -> bool {
-    return N > 0 && fixed.buffer[0] != 0;
+count :: (fixed: FixedString) -> int {
+    return c_style_strlen(fixed.buffer.data);
 }
 
 to_upper_case :: (fixed: FixedString($N)) -> FixedString(N) {
@@ -507,19 +458,9 @@ temp_substring :: (buffer: *FixedString($N), start: int, length: int) -> string 
     return value;
 }
 
-hash :: (buffer: FixedString($N)) -> u32 {
-    return sdbm_hash(buffer.buffer.data, N);
+get_hash :: (buffer: FixedString($N)) -> u32 {
+    return cast,trunc(u32) fnv1a_hash(buffer.buffer.data, count(buffer));
 }
-
-fixed_string_hash :: hash;
-
-get_hash :: hash;
-
-equals :: (a: FixedString($N), b: FixedString(N)) -> bool {
-    return memcmp(a.buffer.data, b.buffer.data, N) == 0;
-}
-
-fixed_string_equals :: equals;
 
 clear :: (buffer: *FixedString($N)) {
     memset(buffer.buffer.data, 0, N);
@@ -529,3 +470,14 @@ clear :: (buffer: *FixedString($N)) {
 
 #import "Basic";
 #import "Hash";
+
+Basic :: #import "Basic";
+Hash :: #import "Hash";
+Table :: #import "Hash_Table";
+
+#poke_name Basic operator ==;
+
+#poke_name Hash get_hash;
+#poke_name Hash operator ==;
+
+#poke_name Table operator ==;
